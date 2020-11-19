@@ -9,6 +9,7 @@ open! IStd
 module L = Die
 
 type t =
+  | MySimpleChecker
   | AnnotationReachability
   | Biabduction
   | BufferOverrunAnalysis
@@ -73,6 +74,18 @@ let config_unsafe checker =
     match language with Clang -> NoSupport | Java -> Support
   in
   match checker with
+  | MySimpleChecker ->
+      {id= "my-simple-checker"
+      ; kind=
+          UserFacing
+            { title= "My Simple Checker"
+            ; markdown_body= "" }
+      ; support= supports_java
+      ; short_documentation=
+          "a simple checker to detect stuff"
+      ; cli_flags= Some {deprecated= []; show_in_help= true}
+      ; enabled_by_default= true
+      ; activates= [] }
   | AnnotationReachability ->
       { id= "annotation-reachability"
       ; kind= UserFacing {title= "Annotation Reachability"; markdown_body= ""}
