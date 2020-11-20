@@ -341,8 +341,8 @@ let captured_strong_self =
   register ~id:"CAPTURED_STRONG_SELF" ~hum:"Captured strongSelf" Error SelfInBlock
     ~user_documentation:[%blob "../../documentation/issues/CAPTURED_STRONG_SELF.md"]
 
-let variable_unused = register ~id:"VARIABLE_NOT_USED" ~hum:"Variable not used" Error MySimpleChecker
-  ~user_documentation:"See MySimpleChecker"
+let variable_unused = register ~id:"VARIABLE_NOT_USED" ~hum:"Variable not used" Error DataUsageCheck
+  ~user_documentation:"See DataUsageCheck"
 
 let checkers_allocates_memory =
   register ~id:"CHECKERS_ALLOCATES_MEMORY" ~hum:"Allocates Memory" Error AnnotationReachability

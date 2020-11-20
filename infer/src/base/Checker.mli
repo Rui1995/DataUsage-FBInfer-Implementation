@@ -8,7 +8,7 @@
 open! IStd
 
 type t =
-  | MySimpleChecker
+  | DataUsageCheck
   | AnnotationReachability
   | Biabduction
   | BufferOverrunAnalysis

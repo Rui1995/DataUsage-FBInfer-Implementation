@@ -138,11 +138,11 @@ module Domain =  struct
 
   let pp fmt {map; hash; map_vars} = F.fprintf fmt "%a \nHASH: %a \nMAP_VARS %a" Map.pp map hash_pp hash Map_Vars.pp map_vars
 
-  let change_map {map; hash; map_vars} new_map = 
-    {map= new_map; hash = hash; map_vars=map_vars}
+  let change_map t new_map = 
+    {map= new_map; hash = t.hash; map_vars=t.map_vars}
 
-  let change_map_vars {map; hash; map_vars} new_map_vars =
-    {map= map; hash = hash; map_vars=new_map_vars}
+  let change_map_vars t new_map_vars =
+    {map= t.map; hash = t.hash; map_vars=new_map_vars}
 
 
 end
@@ -176,14 +176,12 @@ let check_if_used_assign astate e1 =
 
 let is_e1_in_e2 e1 e2 =                        
   let seq1 = Var.get_all_vars_in_exp e2 in                     
-  Sequence.exists seq1 ~f:(fun a -> a==e1)
+  Sequence.exists seq1 ~f:(fun a -> phys_equal a e1)   
 
 let update_e2_without_e1 astate e1 e2 loc=          
   let seq1 = Var.get_all_vars_in_exp e2 in                             
   Sequence.fold seq1 ~init:astate 
-  ~f:(fun state a -> match a with
-        |e1 -> state
-        |_ -> Map.add a {loc; classi=U} state)                         
+  ~f:(fun state a -> if (phys_equal a e1) then state else  Map.add a {loc; classi=U} state)                        
 
 let check_exp_exists astate e loc=                                                        
   let seq = Var.get_all_vars_in_exp e in    
@@ -450,9 +448,9 @@ module TransferFunctions = struct
 
   type analysis_data = IntraproceduralAnalysis.t
 
-  let pp_session_name _node fmt = F.pp_print_string fmt "MySimpleChecker"
+  let pp_session_name _node fmt = F.pp_print_string fmt "DataUsageCheck"
 
-  let exec_instr (astate : Domain.t) {IntraproceduralAnalysis.proc_desc; err_log} cfg_node (instr : Sil.instr) = 
+  let exec_instr (astate : Domain.t) _ cfg_node (instr : Sil.instr) = 
     match instr with 
 
     | Prune (expp, loc, bol, _) ->
@@ -469,7 +467,7 @@ module TransferFunctions = struct
           let map1 = Map.mapi (fun _ value -> DomainData.pop value) astate.map in Domain.change_map astate map1
       )
 
-    | Load {id; e= Exp.Lvar e; typ; loc} when is_in_hashtbl astate.hash id -> 
+    | Load {id; e= Exp.Lvar e; loc} when is_in_hashtbl astate.hash id -> 
       let map0 = check_exp astate.map id loc in 
       let map1 = check_pvar_exists map0 e loc in
       if (Hashtbl.mem astate.hash (Ident.to_string id)) then 
@@ -495,7 +493,7 @@ module TransferFunctions = struct
         end
 
 
-    | Load {id ; e = Exp.Lindex (e1,e2); typ; loc} ->  (*when a = b[c] *)
+    | Load {id ; e = Exp.Lindex (e1,e2); loc} ->  (*when a = b[c] *)
       let map0 = check_exp_exists (check_exp_exists astate.map e1 loc) e2 loc in 
       let e1_var = (Sequence.nth_exn (Var.get_all_vars_in_exp e1) 0) in     
       let id_var0 = Var.of_id id in 
@@ -516,7 +514,7 @@ module TransferFunctions = struct
       ) in 
       Domain.change_map astate map1
 
-    | Load {id; e; loc; typ} -> 
+    | Load {id; e; loc} -> 
       let all_vars = Var.get_all_vars_in_exp e in 
       let sequence_length = Sequence.length all_vars in 
       let astate1 = (if (Int.equal (sequence_length) 1) then 
@@ -532,7 +530,7 @@ module TransferFunctions = struct
       if Map.mem (Var.of_id id) state1 then let map1 = load_helper id e state1 in Domain.change_map astate1 map1
       else let map1 = state1 in Domain.change_map astate1 map1
 
-    | Store {e1= Exp.Lindex (e1,e11); e2 = Exp.Var e2; typ; loc} when not (already_in_domain e1 e2 astate.map)-> 
+    | Store {e1= Exp.Lindex (e1,e11); e2 = Exp.Var e2} when not (already_in_domain e1 e2 astate.map)-> 
       if (Exp.is_const e11) then 
       begin 
         Hashtbl.add_exn astate.hash ~key:(Exp.to_string e1) ~data:(Ident.to_string e2) ;astate
@@ -545,13 +543,13 @@ module TransferFunctions = struct
         astate 
       end
 
-    | Store {e1= Exp.Lvar e1; e2= Exp.Var e2; typ; loc} when Pvar.is_return e1 ->        
+    | Store {e1= Exp.Lvar e1; e2= Exp.Var e2; loc} when Pvar.is_return e1 ->        
       if ((has_2_preds cfg_node) && (is_statement_node cfg_node)) then 
         let map1 = Map.mapi (fun _ value -> DomainData.push value) (Map.add (Var.of_id e2) {loc; classi=U} astate.map) in Domain.change_map astate map1
       else 
         let map1 = Map.add (Var.of_id e2) {loc; classi=U} astate.map in Domain.change_map astate map1
 
-    | Store {e1= Exp.Lvar e1; e2 = Exp.Var e2; typ; loc} -> (*add &_= n$_ to the map*)       
+    | Store {e1= Exp.Lvar e1; e2 = Exp.Var e2; loc} -> (*add &_= n$_ to the map*)       
       let map_vars_new0 = check_update_map_vars (Var.of_pvar e1) (Var.of_id e2) astate.map_vars in 
       let astate0 = Domain.change_map_vars astate map_vars_new0 in  
       let e1_var = Var.of_pvar e1 in 
@@ -572,7 +570,7 @@ module TransferFunctions = struct
       else 
         let map2 = (update_value_in_map e1_var e2_var map1) in Domain.change_map astate1 map2 
 
-    | Store {e1; e2; typ; loc} ->                                             
+    | Store {e1; e2; loc} ->                                             
       let all_vars_e1 = Var.get_all_vars_in_exp e1 in 
       let sequence_length_e1 = Sequence.length all_vars_e1 in
       let all_vars_e2 = Var.get_all_vars_in_exp e2 in 
@@ -716,7 +714,7 @@ let list_var_class domain =
 let launch_final_error proc_desc err_log domain =
   let dom0 = remove_signs_from_domain domain in  
   let dom1 = list_var_class dom0 in  
-  Map.iter (fun key vl -> let message  = F.asprintf "Variable not used: %a" Var.pp key in Reporting.log_issue proc_desc err_log ~loc:(vl.loc) MySimpleChecker IssueType.variable_unused message) dom1  
+  Map.iter (fun key vl -> let message  = F.asprintf "Variable not used: %a" Var.pp key in Reporting.log_issue proc_desc err_log ~loc:(vl.loc) DataUsageCheck IssueType.variable_unused message) dom1  
 
 module Analyzer = AbstractInterpreter.MakeWTO (TransferFunctions)
 

@@ -69,8 +69,8 @@ type checker = {checker: Checker.t; callbacks: (callback_fun * Language.t) list}
 let all_checkers =
   (* The order of the list is important for those checkers that depend on other checkers having run
      before them. *)
-  [ { checker= MySimpleChecker
-    ; callbacks= [(intraprocedural MySimpleChecker.checker, Language.Java)] } 
+  [ { checker= DataUsageCheck
+    ; callbacks= [(intraprocedural DataUsageCheck.checker, Language.Java)] } 
   ;{checker= SelfInBlock; callbacks= [(intraprocedural SelfInBlock.checker, Clang)]}
   ; { checker= BufferOverrunAnalysis
     ; callbacks=

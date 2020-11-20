@@ -9,7 +9,7 @@ open! IStd
 module L = Die
 
 type t =
-  | MySimpleChecker
+  | DataUsageCheck
   | AnnotationReachability
   | Biabduction
   | BufferOverrunAnalysis
@@ -74,15 +74,15 @@ let config_unsafe checker =
     match language with Clang -> NoSupport | Java -> Support
   in
   match checker with
-  | MySimpleChecker ->
-      {id= "my-simple-checker"
+  | DataUsageCheck ->
+      {id= "data-usage-check"
       ; kind=
           UserFacing
-            { title= "My Simple Checker"
+            { title= "Data Usage Check"
             ; markdown_body= "" }
       ; support= supports_java
       ; short_documentation=
-          "a simple checker to detect stuff"
+          "Detects input variables not used in java programs"
       ; cli_flags= Some {deprecated= []; show_in_help= true}
       ; enabled_by_default= true
       ; activates= [] }
